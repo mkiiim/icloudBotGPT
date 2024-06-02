@@ -1,4 +1,4 @@
-from libs.imessage_reader.imessage_reader import fetch_data
+from libs.imessage_reader import fetch_data
 import sqlite3
 import time
 import os
@@ -52,10 +52,6 @@ def update_response_queue(new_messages):
             response_queue.append((row_id, is_from_me, handle_id, chat_id))
 
     # remove duplicates where key is (handle_id and chat_id)
-    # for i in range(len(response_queue)):
-    #     for j in range(len(response_queue)-1, i, -1):
-    #         if response_queue[i][2] == response_queue[j][2] and response_queue[i][3] == response_queue[j][3]:
-    #             response_queue.pop(j)
     seen = {}
     new_response_queue = []
     for item in response_queue[::-1]:
@@ -65,10 +61,6 @@ def update_response_queue(new_messages):
     response_queue = new_response_queue[::-1]
 
     # remove duplicates where key is (chat_id)
-    # for i in range(len(response_queue)):
-    #     for j in range(len(response_queue)-1, i, -1):
-    #         if (response_queue[i][3] == response_queue[j][3]) and not (response_queue[i][3] == None):
-    #             response_queue.pop(j)
     seen = {}
     new_response_queue = []
     for item in response_queue[::-1]:
@@ -83,10 +75,6 @@ def update_response_queue(new_messages):
             response_queue.pop(i)
 
     return response_queue
-
-# AppleScript to send an iMessage
-def send_imessage(phone_number, message):
-    subprocess.run(["osascript", script_path, phone_number, message])
 
 def build_prompt_conversation(thread_messages):
     
@@ -200,6 +188,18 @@ def get_attachments(list_of_message_ids) -> list:
 def process_plugins(thread_messages):
     pass
 
+# check for macOS version to determine whether to use AppleScript or Shortcuts
+def check_macos_version():
+    version = os.system("sw_vers -productVersion")
+    if version >= 12:
+        return True
+    else:
+        return False
+
+# AppleScript to send an iMessage
+def send_imessage(phone_number, message):
+    subprocess.run(["osascript", script_path, phone_number, message])
+
 def main():
 
 # Main loop
@@ -221,7 +221,7 @@ def main():
             
             # telemetry
             print(f"\nall_messages: {len(all_messages)}")
-            print(f"new_messages: {len(new_messages)}")
+            print(f"new_messages: {len(new_messages)} since last processed message row ID: {last_processed_id}")
             print(f"response_queue: {len(response_queue)}")
                 
             # for each "thread" in the response queue, get a history of relevant messages in the last 1000 messages,
@@ -233,7 +233,7 @@ def main():
                 thread_messages = get_thread_messages(thread, new_messages)        
 
                 # get all recipients in the thread
-                thread_recipients = get_thread_recipients(thread_messages[-1][0])        
+                thread_recipients = get_thread_recipients(thread_messages[-1][7])        
 
                 # build conversation object for this thread
                 conversation = build_prompt_conversation(thread_messages)
@@ -271,12 +271,13 @@ def main():
                 # print(f"\t\t\tResponse: {new_instructions}")
                 print(f"\t\t\tResponse: {new_message}")
 
-                # # Send the message via subprocess - if only AppleScript is available
-                # if thread[3] is None:
-                #     send_imessage(thread[2], new_message)
-
-                # Send the message via subprocess - if Shortcuts is available (macOS Monterey 12+)                   
-                imessage.send(thread_recipients, new_message)
+                # Send the message via Shortcuts - if macOS Monterey 12+                   
+                # Send the message via subprocess - if only AppleScript is available
+                if check_macos_version:
+                    imessage.send(thread_recipients, new_message)
+                else:
+                    if thread[3] is None:
+                        send_imessage(thread[2], new_message)
 
                 # Update the last processed message ID
                 last_processed_id = thread[0]

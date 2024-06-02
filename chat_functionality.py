@@ -2,13 +2,10 @@ from openai import OpenAI
 from config import *
 import yaml
 
-client = OpenAI(APIKEY_OPENAI)
+client = OpenAI(api_key=APIKEY_OPENAI)
 
-# Change "model" to whatever your desired model is. Such as GPT-4 if available
-# Adjust temperature to either increase or decrease the randomness of ChatGPT's responses. 0.0-2.0
-# Adjust max_tokens to increase or decrease the length of responses
-
-#Going forward, create a LLM completion object for each LLMN model you want to use. This will allow you to use multiple models in the same script.
+# Change model and parameters as needed
+# Going forward, create a LLM completion object for each LLMN model you want to use. This will allow you to use multiple models in the same script.
 def ChatGPT_completion(conversation):
     response = client.chat.completions.create(
         model="gpt-4o",

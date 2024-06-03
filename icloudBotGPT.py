@@ -8,6 +8,7 @@ from chat_functionality import *
 from config import *
 import imessage
 
+
 # Setup for OpenAI API key and other constants
 openai.api_key = APIKEY_OPENAI
 
@@ -35,7 +36,7 @@ def get_new_messages(last_id, limit):
     for message in messages:
         if int(message[7]) > int(last_id):
             new_messages.append(message)
-    # Return the last 200 messages
+    # Return the last {limit} messages
     return new_messages[-limit:]
 
 def update_response_queue(new_messages):
@@ -220,6 +221,9 @@ def main():
             response_queue = update_response_queue(new_messages)
             
             # telemetry
+            timestamp = time.localtime()
+            formatted_time = time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
+            print(f"\n{formatted_time}")
             print(f"\nall_messages: {len(all_messages)}")
             print(f"new_messages: {len(new_messages)} since last processed message row ID: {last_processed_id}")
             print(f"response_queue: {len(response_queue)}")

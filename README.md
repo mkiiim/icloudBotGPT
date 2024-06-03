@@ -32,6 +32,9 @@
  
  ### OS and icloud
  - ...
+
+ ### Automation - AppleScript and Shortcuts
+ - ...
  
  ### Python environment
  - ...
@@ -48,3 +51,4 @@
 
  ## Acknowledgements
  - [imessage_reader](https://github.com/niftycode/imessage_reader) for providing the library which underpins the method by which iMessage database is accessed. A fork of the repoistory and modifications were made to access some additional tables/fields.
+ - [py-imessage-shortcuts](https://github.com/kevinschaich/py-imessage-shortcuts) for the shortcut which enables iMessage automation

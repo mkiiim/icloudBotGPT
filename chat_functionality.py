@@ -1,3 +1,4 @@
+import asyncio
 from openai import OpenAI
 from config import *
 import yaml
@@ -6,14 +7,18 @@ client = OpenAI(api_key=APIKEY_OPENAI)
 
 # Change model and parameters as needed
 # Going forward, create a LLM completion object for each LLMN model you want to use. This will allow you to use multiple models in the same script.
-def ChatGPT_completion(conversation):
+async def ChatGPT_completion(conversation):
+    print(f"*** started completing {str(conversation[0])[:60]}...")
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=conversation,
         max_tokens=1000,
-        temperature=0.2)
-        
+        temperature=0.7)
+
+    print(f"*** finished completing {str(conversation[0])[:60]}...")        
     return response
+
+
 
 def load_prompts(file_path):
     with open(file_path, 'r') as file:

@@ -2,6 +2,7 @@ from libs.imessage_reader import fetch_data
 import sqlite3
 import time
 import os
+import asyncio
 import subprocess
 import openai
 from chat_functionality import *
@@ -83,7 +84,7 @@ def build_prompt_conversation(thread_messages):
 
     # Because of ChatGPT's limit on the amount of content you upload, this only retrieves the last {msg_limit} text messages sent between you and a recipient
     message_quant = len(thread_messages)
-    msg_limit = 50
+    msg_limit = 30
     if message_quant <= msg_limit:
         for message in thread_messages:
             if message[5]:
@@ -201,7 +202,7 @@ def check_macos_version():
 def send_imessage(phone_number, message):
     subprocess.run(["osascript", script_path, phone_number, message])
 
-def main():
+async def main():
 
 # Main loop
     last_processed_id = get_last_processed_id()
@@ -257,23 +258,28 @@ def main():
                 print(f"\t\tconversation: {len(conversation)}")
 
                 # Build the prompt to develop instructions for replying to the conversation
-                # completion_instructions = build_prompt_analysis(conversation, prompts['prompt_analysis'])
+                completion_instructions = build_prompt_analysis(conversation, prompts['prompt_analysis'])
 
                 # Uses completion_instructions to get a list of instructional steps ChatGPT would take to respond to the person's text message
                 # new_message = completed_assistant(thread_messages[-1][1], conversation)
-                # new_instructions = ChatGPT_completion(completion_instructions).choices[0].message.content
+                new_instructions = asyncio.create_task(ChatGPT_completion(completion_instructions))
 
                 # Build the prompt to complete the conversation
                 completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
 
                 # Uses completion_reply function to get ChatGPT response to the person's text message
                 # new_message = completed_assistant(thread_messages[-1][1], conversation)
-                new_message = ChatGPT_completion(completion_reply).choices[0].message.content
+                new_message = asyncio.create_task(ChatGPT_completion(completion_reply))
+
+                # await ChatGPT completions
+                await asyncio.gather(new_instructions, new_message)
+                new_instructions = new_instructions.result().choices[0].message.content
+                new_message = new_message.result().choices[0].message.content
 
                 # Print to console
                 print(f"\t\tThread info: {thread}")
-                # print(f"\t\t\tResponse: {new_instructions}")
-                print(f"\t\t\tResponse: {new_message}")
+                print(f"\nCompletion - Instruction:\n{new_instructions}")
+                print(f"\nCompletion - Reply:\n{new_message}\n")
 
                 # Send the message via Shortcuts - if macOS Monterey 12+                   
                 # Send the message via subprocess - if only AppleScript is available
@@ -295,4 +301,4 @@ def main():
             time.sleep(60)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

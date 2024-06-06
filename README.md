@@ -42,7 +42,7 @@
  ### Program Configuration
  - ...
 
- ## Future Features in Progress
+ ## Future features in progress
  not necessarily in this order:
  - multi-modality
  - OS calendar and notes integration / automation

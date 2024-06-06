@@ -3,14 +3,14 @@ import sqlite3
 import time
 import os
 import subprocess
-import openai
+# import openai
 from chat_functionality import *
 from config import *
 import imessage
 
 
 # Setup for OpenAI API key and other constants
-openai.api_key = APIKEY_OPENAI
+# openai.api_key = APIKEY_OPENAI
 
 # Get the last processed message ID from a file
 def get_last_processed_id(file_path=FILEPATH_LAST_MSG_ID):
@@ -83,13 +83,13 @@ def build_prompt_conversation(thread_messages):
 
     # Because of ChatGPT's limit on the amount of content you upload, this only retrieves the last {msg_limit} text messages sent between you and a recipient
     message_quant = len(thread_messages)
-    msg_limit = 50
+    msg_limit = 20
     if message_quant <= msg_limit:
         for message in thread_messages:
             if message[5]:
                 conversation.append({"role": "assistant", "content": message[1]})
             else:
-                conversation.append({"role": "user", "id": f"{message[0]}", "content": f"{message[1]}"}) # this also adds ID of the sender (important in the case of group chats)
+                conversation.append({"role": "user", "imessage_id": f"{message[0]}", "content": f"{message[0]} says:{message[1]}"}) # this also adds ID of the sender (important in the case of group chats)
         return conversation
     # if the conversation history between you and the recipient is less than {msg_limit}, then it just uploads the entire thing
     else:
@@ -97,7 +97,7 @@ def build_prompt_conversation(thread_messages):
             if message[5]:
                 conversation.append({"role": "assistant", "content": message[1]})
             else:
-                conversation.append({"role": "user", "id": f"{message[0]}", "content": f"{message[1]}"}) # this also adds ID of the sender (important in the case of group chats)
+                conversation.append({"role": "user", "imessage_id": f"{message[0]}", "content": f"{message[0]} says:{message[1]}"}) # this also adds ID of the sender (important in the case of group chats)
         return conversation
 
 def get_thread_messages(thread, new_messages):
@@ -264,11 +264,11 @@ def main():
                 # new_instructions = ChatGPT_completion(completion_instructions).choices[0].message.content
 
                 # Build the prompt to complete the conversation
-                completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
+                completion_reply = build_prompt_response(conversation, "")
 
                 # Uses completion_reply function to get ChatGPT response to the person's text message
                 # new_message = completed_assistant(thread_messages[-1][1], conversation)
-                new_message = ChatGPT_completion(completion_reply).choices[0].message.content
+                new_message = ChatGPT_completion(prompts['prompt_response'],completion_reply)
 
                 # Print to console
                 print(f"\t\tThread info: {thread}")

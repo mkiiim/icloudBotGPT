@@ -13,7 +13,7 @@
  ## How it works
  The program polls the iMessage database at `/Users/{username}/Library/Messages/chat.db` for messages. After some processing of messages into "threads", determining which threads expect a reply, and adding these threads to a "response queue", messages in individual threads are then packaged into a (user configurable) prompt for the chatbot and sent to the chatbot API for completion (a response). Once a completion is received from the chatbot API, it is packaged as a payload which, depending on macOS version, either Shortcut or AppleScript will use in a custom automation as the body of an iMessage reply to the apporopriate party(s) in the thread. This is repeated per thread in the the response queue.
 
- This project works by dedicating an old spare macmini that I have to host an Apple icloud account through which the chat bot is able to access iMessage.
+ This project works by dedicating an old spare macmini that I have to host an active Apple icloud account user session (i.e., signed-in to the GUI) through which the chat bot is able to access iMessage.
 
  Chatting with the bot is possible via the iMessage app that you can find on macOS, iOS, and ipadOS. It is also possible to address the bot on any phone capable of plain SMS messaging, with some limitations, provided you have the luxury to dedicate a mobile network enabled device (i.e., cell phone), cell phone number, and dataplan to the bot. To be clear, a cell phone and plan is not required if operating strictly within an Apple environment and participants.
 
@@ -22,7 +22,7 @@
  The bot can also participate in group chats but this capability requires automation that only Shortcuts can provide. For older macOS versions on which automation is enabled by AppleScript, I've not been able to figure out or find a way to send replies to the whole chat group, just individuals.
 
  ## Requirements
- - a dedicated mac running macOS (preferrably v12, Monterey or above) signed into an iCloud account. Note: I can confirm that it does work on a macmini 2012 (officially supported only through to v11, Catalina) running Monterey on the bare metal via OpenCoreLegacyPatcher. I have also experimented with a VM on proxmox hyper-visor but ran into the known issues and difficulties with being able to run iMessage on non-bare-metal Apple hardware. YMMV.
+ - a dedicated mac running macOS (preferrably v12, Monterey or above) signed into an iCloud account user session. Note: I can confirm that it does work on a macmini 2012 (officially supported only through to v11, Catalina) running Monterey on the bare metal via OpenCoreLegacyPatcher. I have also experimented with a VM on proxmox hyper-visor but ran into the known issues and difficulties with being able to run iMessage on non-bare-metal Apple hardware. YMMV.
  - python (developed on 3.9+)
  - OpenAI API key (in the future I intend to support other chatbots including local LLMs)
 
@@ -48,6 +48,7 @@
  - OS calendar and notes integration / automation
  - filesystem and datastore RAG
  - async / thread
+ - use new OpenAI assistants
 
  ## Acknowledgements
  - [imessage_reader](https://github.com/niftycode/imessage_reader) for providing the library which underpins the method by which iMessage database is accessed. A fork of the repoistory and modifications were made to access some additional tables/fields.

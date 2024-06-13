@@ -7,7 +7,23 @@ client = OpenAI(api_key=APIKEY_OPENAI)
 
 # Change model and parameters as needed
 # Going forward, create a LLM completion object for each LLMN model you want to use. This will allow you to use multiple models in the same script.
-def ChatGPT_completion(prompt_instructions, message_history):
+
+def ChatGPT_completion(for_completion):
+
+    # imessage_id and attachment will be invalid in the message_history object. Remove it.
+    for m in for_completion:
+        m.pop('imessage_id', None)
+        m.pop('attachment', None)
+
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=for_completion,
+        max_tokens=1000,
+        temperature=0.2)
+        
+    return response.choices[0].message.content
+
+def ChatGPT_assistant(prompt_instructions, message_history):
     assistant = client.beta.assistants.create(
         model="gpt-4o",
         name = "{os.getenv('USER')}_assistant",
@@ -15,10 +31,14 @@ def ChatGPT_completion(prompt_instructions, message_history):
         # max_tokens=1000,
         temperature=0.2)
     
-    # imessage_id will be invalid in the message_history object. Remove it.
+    # NOTE that message_history is 0-indexed oldest to newest, but when messages are retrieved
+    # from client.beta.threads.messages.list, they are 0-indexed newest to oldest
+
+    # imessage_id and attachment will be invalid in the message_history object. Remove it.
     for m in message_history:
         m.pop('imessage_id', None)
-
+        m.pop('attachment', None)
+    
     # create thread object
     thread = client.beta.threads.create(
         messages=message_history,
@@ -60,7 +80,7 @@ def build_prompt(conversation, system_prompt="You are a helpful assistant. Provi
 
 def build_prompt_response(conversation, system_prompt="You are a helpful assistant. Provide a response to the user(s)."):
     completion = []
-    # completion.append({"role": "assistant", "content": system_prompt})
+    completion.append({"role": "system", "content": system_prompt})
     completion.extend(conversation)
     return completion
 

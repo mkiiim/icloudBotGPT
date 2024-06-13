@@ -3,14 +3,13 @@ import sqlite3
 import time
 import os
 import subprocess
-# import openai
+import base64
 from chat_functionality import *
 from config import *
 import imessage
+from heic2png import HEIC2PNG
+from PIL import Image
 
-
-# Setup for OpenAI API key and other constants
-# openai.api_key = APIKEY_OPENAI
 
 # Get the last processed message ID from a file
 def get_last_processed_id(file_path=FILEPATH_LAST_MSG_ID):
@@ -42,7 +41,9 @@ def get_new_messages(last_id, limit):
 def update_response_queue(new_messages):
     """ identify the unique groups of message senders / chat groups in the new messages
         that are not from the assistant and return a list of tuples with the following format:
-        (row_id, is_from_me, handle_id, chat_id)"""
+        (row_id, is_from_me, handle_id, chat_id)
+        where row_id is the first message of each group of messages from the same conversation
+    """
     response_queue = []
     for message in new_messages:
         row_id = message[7]
@@ -77,35 +78,12 @@ def update_response_queue(new_messages):
 
     return response_queue
 
-def build_prompt_conversation(thread_messages):
-    
-    conversation = []
-
-    # Because of ChatGPT's limit on the amount of content you upload, this only retrieves the last {msg_limit} text messages sent between you and a recipient
-    message_quant = len(thread_messages)
-    msg_limit = 20
-    if message_quant <= msg_limit:
-        for message in thread_messages:
-            if message[5]:
-                conversation.append({"role": "assistant", "content": message[1]})
-            else:
-                conversation.append({"role": "user", "imessage_id": f"{message[0]}", "content": f"{message[0]} says:{message[1]}"}) # this also adds ID of the sender (important in the case of group chats)
-        return conversation
-    # if the conversation history between you and the recipient is less than {msg_limit}, then it just uploads the entire thing
-    else:
-        for message in thread_messages[-(msg_limit)::]:
-            if message[5]:
-                conversation.append({"role": "assistant", "content": message[1]})
-            else:
-                conversation.append({"role": "user", "imessage_id": f"{message[0]}", "content": f"{message[0]} says:{message[1]}"}) # this also adds ID of the sender (important in the case of group chats)
-        return conversation
-
-def get_thread_messages(thread, new_messages):
+def get_thread_messages(thread, all_messages):
     thread_messages = []
     if thread[3] is None: # If the message is not part of a group chat
-        thread_messages = [text for text in new_messages if ((text[0] == thread[2]) and (text[6] is None))]
+        thread_messages = [single_message for single_message in all_messages if ((single_message[0] == thread[2]) and (single_message[6] is None))]
     else: # If the message is part of a group chat
-        thread_messages = [text for text in new_messages if text[6] == thread[3]]
+        thread_messages = [single_message for single_message in all_messages if single_message[6] == thread[3]]
     return thread_messages
 
 def get_thread_recipients(message):
@@ -145,6 +123,118 @@ def get_thread_recipients(message):
     conn.close()
 
     return handle_ids_list
+
+def build_prompt_conversation(thread_messages):
+    
+    conversation = []
+
+    # Because of ChatGPT's limit on the amount of content you upload, this only retrieves the last {THREAD_MSG_LIMIT} text messages sent between you and a recipient
+    message_quant = len(thread_messages)
+
+    # determine the range messages to process
+    # if the conversation history between you and the recipient is less than {msg_limit}, then it just uploads the entire thing
+    messages_to_process = thread_messages if message_quant <= THREAD_MSG_LIMIT else thread_messages[-THREAD_MSG_LIMIT:]
+
+    for thread_message in messages_to_process:
+        if thread_message[5]:
+            conversation.append({"role": "assistant", "content": thread_message[1]})
+        
+        else:    
+            # conversation.append({"role": "user", "imessage_id": f"{thread_message[0]}", "content": f"{thread_message[0]} says:{thread_message[1]}"}) # this also adds ID of the sender (important in the case of group chats)
+
+            # content - text message
+            content_text = []
+            content_text.append({"type": "text" ,"text" : f"{thread_message[0]} says:{thread_message[1]}"})
+            # content_text.append({ "text" : f"{thread_message[0]['user_id']} says:{thread_message[0]['message']}"})
+            content_all = content_text
+
+            # content - attachments
+            content_attachment = []
+            if thread_message[8]:
+                content_attachment = process_attachments(thread_message)
+                content_all = content_text + content_attachment if content_attachment else content_text
+
+            # conversation
+            conversation.append({"role": "user", "content": content_all}) 
+            
+    return conversation
+
+def process_attachments(thread_message):
+    content_attachment = []
+    attachments = get_attachments(list_of_message_ids=[thread_message[7]]) # only passing the one message ID
+    for attachment in attachments:
+
+        attachment_filename = attachment[2]
+        
+        # filename and path components
+        attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
+
+        print(f"\nAttachment filename: {attachment_filename}")
+
+        # check file exists
+        if not os.path.exists(attachment_filename_expanded):
+            print(f"Attachment file does not exist: {attachment_filename}")
+            continue
+
+        # if a heic file, convert to png
+        if attachment_filename_extension.lower() == '.heic':
+            heic2png = HEIC2PNG(attachment_filename_expanded, quality=90)
+            heic2png.save()
+            attachment_filename = heic2png.output_file
+
+            # filename and path components
+            attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
+
+        # check valid file type
+        if attachment_filename_extension.lower() not in ['.png', '.jpg', '.jpeg', '.gif']:
+            print(f"Attachment file is not a valid image: {attachment_filename_extension}")
+            continue
+
+        # check file size
+        file_size = os.path.getsize(attachment_filename_expanded)
+        attachment_filename_resized = attachment_filename_path + '/' + attachment_filename_stem + '_resized_for_AI' + attachment_filename_extension
+        image = Image.open(os.path.expanduser(attachment_filename_expanded))
+
+        while file_size > FILE_SIZE_LIMIT:
+            print(f"Attachment file is too large: {file_size} bytes, resizing ...")
+            
+            # resize as ratio of actual file_size to FILE_SIZE_LIMIT
+            resize_ratio = FILE_SIZE_LIMIT / file_size
+            original_width, original_height = image.size
+            new_width = int(original_width * resize_ratio)
+            new_height = int(original_height * resize_ratio)
+            resized_image = image.resize((new_width, new_height))
+            resized_image.save(os.path.expanduser(attachment_filename_resized))
+            file_size = os.path.getsize(os.path.expanduser(attachment_filename_resized))
+            image = Image.open(os.path.expanduser(attachment_filename_resized))
+
+            # point to the resized file
+            attachment_filename = attachment_filename_resized
+
+            # filename and path components
+            attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
+
+        # convert image to base64
+        attachment_encode = encode_image(attachment_filename)
+        attachment_type = attachment_filename.split('.')[-1]
+        content_attachment.append({"type": "image_url", "image_url": {"url": f"data:image/{attachment_type};base64,{attachment_encode}"}})
+        # content_attachment.append({"type": "image_url", "url": f"data:image/jpeg;base64,{attachment_encode}"})
+        print(f"Attachment file processed: {attachment_filename}\n")
+
+    return content_attachment
+
+def get_filename_components(attachment_filename):
+    attachment_filename_expanded = os.path.expanduser(attachment_filename)
+    attachment_filename_path = os.path.dirname(attachment_filename_expanded)
+    attachment_filename_basename = os.path.basename(attachment_filename_expanded)
+    attachment_filename_stem = os.path.splitext(attachment_filename_basename)[0]
+    attachment_filename_extension = os.path.splitext(attachment_filename_basename)[1]
+    return attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension
+
+def encode_image(image_path):
+  full_path = os.path.expanduser(image_path)
+  with open(full_path, "rb") as image_file:
+    return base64.b64encode(image_file.read()).decode('utf-8')
 
 def analyze_thread(thread_messages):
     # determine how many contiguous messages at the end of the thread are not from the assistant,
@@ -214,10 +304,10 @@ def main():
             all_messages = []
             all_messages = get_new_messages(1, 1000)
 
-            # get the last 200 new messages from the database
+            # get the last 200 new messages from the database (which can be made up of multiple conversations i.e., threads)
             new_messages = get_new_messages(last_processed_id, 200)
             
-            # how many response queues are there? (i.e., how many different threads are there?)
+            # queue of the first message of each thread (i.e., length = how many conversation threads there are)
             response_queue = update_response_queue(new_messages)
             
             # telemetry
@@ -234,7 +324,7 @@ def main():
             for thread_index, thread in enumerate(response_queue):
                 
                 # get all messsages in the thread
-                thread_messages = get_thread_messages(thread, new_messages)        
+                thread_messages = get_thread_messages(thread, all_messages)        
 
                 # get all recipients in the thread
                 thread_recipients = get_thread_recipients(thread_messages[-1][7])        
@@ -263,12 +353,15 @@ def main():
                 # new_message = completed_assistant(thread_messages[-1][1], conversation)
                 # new_instructions = ChatGPT_completion(completion_instructions).choices[0].message.content
 
-                # Build the prompt to complete the conversation
-                completion_reply = build_prompt_response(conversation, "")
+                # Build the prompt to complete the conversation - not for use with assistants
+                completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
 
                 # Uses completion_reply function to get ChatGPT response to the person's text message
                 # new_message = completed_assistant(thread_messages[-1][1], conversation)
-                new_message = ChatGPT_completion(prompts['prompt_response'],completion_reply)
+                if USE_ASSISTANT:
+                    new_message = ChatGPT_assistant(prompts['prompt_response'],conversation)
+                else:
+                    new_message = ChatGPT_completion(completion_reply)
 
                 # Print to console
                 print(f"\t\tThread info: {thread}")
@@ -292,7 +385,7 @@ def main():
 
         except Exception as e:
             print(f"An error occurred: {e}")
-            time.sleep(60)
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()

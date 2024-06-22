@@ -132,7 +132,7 @@ def build_prompt_conversation(thread_messages):
     message_quant = len(thread_messages)
 
     # determine the range messages to process
-    # if the conversation history between you and the recipient is less than {msg_limit}, then it just uploads the entire thing
+    # if the conversation history between you and the recipient is less than {THREAD_MSG_LIMIT}, then it just uploads the entire thing
     messages_to_process = thread_messages if message_quant <= THREAD_MSG_LIMIT else thread_messages[-THREAD_MSG_LIMIT:]
 
     for thread_message in messages_to_process:
@@ -166,7 +166,7 @@ def process_attachments(thread_message):
 
         attachment_filename = attachment[2]
         
-        # filename and path components
+        # filename and path components of attachment file
         attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
 
         print(f"\nAttachment filename: {attachment_filename}")
@@ -179,11 +179,15 @@ def process_attachments(thread_message):
         # if a heic file, convert to png
         if attachment_filename_extension.lower() == '.heic':
             heic2png = HEIC2PNG(attachment_filename_expanded, quality=90)
-            heic2png.save()
-            attachment_filename = heic2png.output_file
+            
+            # only if png doesn't already exist
+            if not os.path.exists(attachment_filename_path + '/' + attachment_filename_stem + '.png'):
+                heic2png.save()
+                # attachment_filename = heic2png.output_file
+            attachment_filename = attachment_filename_path + '/' + attachment_filename_stem + '.png'
 
-            # filename and path components
-            attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
+            # filename and path components of png file
+            attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(str(attachment_filename))
 
         # check valid file type
         if attachment_filename_extension.lower() not in ['.png', '.jpg', '.jpeg', '.gif']:

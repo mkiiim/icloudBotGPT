@@ -2,6 +2,7 @@ from openai import OpenAI
 from config import *
 import time
 import yaml
+import httpx
 
 client = OpenAI(api_key=APIKEY_OPENAI)
 
@@ -9,19 +10,36 @@ client = OpenAI(api_key=APIKEY_OPENAI)
 # Going forward, create a LLM completion object for each LLMN model you want to use. This will allow you to use multiple models in the same script.
 
 def ChatGPT_completion(for_completion):
-
     # imessage_id and attachment will be invalid in the message_history object. Remove it.
     for m in for_completion:
         m.pop('imessage_id', None)
         m.pop('attachment', None)
 
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=for_completion,
-        max_tokens=1000,
-        temperature=0.2)
-        
-    return response.choices[0].message.content
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=for_completion,
+            max_tokens=1000,
+            temperature=0.2)
+        # response.raise_for_status()  # Raises an error for 4xx/5xx responses
+        return response.choices[0].message.content
+    except openai.APIError as e:
+        #Handle API error here, e.g. retry or log
+        print(f"OpenAI API returned an API Error: {e}")
+        pass
+    except openai.APIConnectionError as e:
+        #Handle connection error here
+        print(f"Failed to connect to OpenAI API: {e}")
+        pass
+    except openai.RateLimitError as e:
+        #Handle rate limit error (we recommend using exponential backoff)
+        print(f"OpenAI API request exceeded rate limit: {e}")
+        pass
+    except Exception as e:
+        # Handle unexpected errors
+        print(f"An unexpected error occurred: {e}")
+        # Optionally, return None or a custom message indicating failure
+        return None
 
 def ChatGPT_assistant(prompt_instructions, message_history):
     assistant = client.beta.assistants.create(

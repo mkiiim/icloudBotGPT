@@ -175,8 +175,6 @@ def process_attachments(thread_message):
 
         # retrieve attachment filename from the record
         attachment_filename = attachment[2]
-        
-        # filename and path components of attachment file
         attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
 
         print(f"\nAttachment filename: {attachment_filename}")
@@ -189,8 +187,6 @@ def process_attachments(thread_message):
         # convert HEIC to PNG if necessary
         if attachment_filename_extension.lower() == '.heic':
             attachment_filename = heic_to_png(attachment_filename_expanded)
-
-        # filename and path components of the new file (could be PNG or original)
         attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
 
         # check valid file type
@@ -199,7 +195,8 @@ def process_attachments(thread_message):
             continue
 
         # check and resize file if necessary
-        resize_file_to_fit(attachment_filename_expanded)
+        attachment_filename = resize_file_to_fit(attachment_filename_expanded)
+        attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
 
         # convert image to base64
         attachment_encode = encode_image(attachment_filename)
@@ -211,7 +208,6 @@ def process_attachments(thread_message):
             }
         }
         content_attachments.append(attachment)
-        # content_attachment.append({"type": "image_url", "url": f"data:image/jpeg;base64,{attachment_encode}"})
         print(f"Attachment file processed: {attachment_filename}\n")
 
     return content_attachments
@@ -249,6 +245,11 @@ def resize_file_to_fit(file_path, size_limit = FILE_SIZE_LIMIT):
     attachment_filename_resized = attachment_filename_path + '/' + attachment_filename_stem + '_resized_for_AI' + attachment_filename_extension
     image = Image.open(file_path)
 
+    # Check if resized_for_AI file already exists
+    if os.path.exists(attachment_filename_resized) and os.path.getsize(attachment_filename_resized) < size_limit:
+        return attachment_filename_resized
+
+    # keep resizing until file size is within limit
     while file_size > size_limit:
         print(f"Attachment file is too large: {file_size} bytes, resizing ...")
         
@@ -265,7 +266,7 @@ def resize_file_to_fit(file_path, size_limit = FILE_SIZE_LIMIT):
         # Update file_path to point to the resized file
         file_path = attachment_filename_resized
 
-    print(f"Attachment file resized to: {file_size} bytes")
+        print(f"Attachment file resized to: {file_size} bytes")
     return file_path
 
 def analyze_thread(thread_messages):

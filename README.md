@@ -2,7 +2,7 @@
  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
  ## Purpose
- This little project was borne out of the ongoing inconvenience of having so many individualized apps for chatbots. I had already experimented with creating a web-based (gradio) app and an iOS app through which you could access any API-accessible remote or local LLM chatbot. But what that really pointed to was having the convenience of being able to use the already existing iMessage app and interface to chat with the bot, instead of having to navigate to, yet another, separate app or browser tab.
+ This little project was borne out of the ongoing inconvenience of having so many individualized apps for chatbots. I had already experimented with creating a web-based (gradio) app and an iOS (Swift-based) app through which you could access any API-accessible remote or local LLM chatbot. But what that really pointed to was having the convenience of being able to use the already existing iMessage app and interface to chat with the bot, instead of having to navigate to, yet another, separate app or browser tab.
 
  Further capabilities are under consideration / development, like being able to deal with multi-modal input (in this case, probably through attachments) and also, what I'll describe as, workflow automation like being able to ask the chatbot to know about, act on, and create notes and calendar appointments. And, in the future, potentially opening up the ability for the chatbot to use documents and files local to it (i.e., on the local machine and account's filesystem or cloud filesystems and datastores) for RAG.
 
@@ -12,7 +12,7 @@
 
  ### Current Capabilities - forever WIP
  - OpenAI completions or assistants
- - on on one chats with LLM
+ - one on one chats with LLM
  - group chats with LLM
  - works with image attachments
 
@@ -32,7 +32,7 @@
  The bot can also participate in group chats but this capability requires automation that only Shortcuts can provide. For older macOS versions on which automation is enabled by AppleScript, I've not been able to figure out or find a way to send replies to the whole chat group, just individuals.
 
  ## Requirements
- - a dedicated mac running macOS (preferrably v12, Monterey or above) signed into an iCloud account user session. Note: I can confirm that it does work on a macmini 2012 (officially supported only through to v11, Catalina) running Monterey on the bare metal via OpenCoreLegacyPatcher. I have also experimented with a VM on proxmox hyper-visor but ran into the known issues and difficulties with being able to run iMessage on non-bare-metal Apple hardware. YMMV.
+ - a dedicated mac running macOS (preferrably v12, Monterey or above) signed into an iCloud account user session. Note: I can confirm that it does work on a macmini 2012 (officially supported only through to v11, Catalina) running Monterey on the bare metal courtesy OpenCoreLegacyPatcher. I have also experimented with a VM on proxmox hyper-visor but ran into the known issues and difficulties with being able to run iMessage on non-bare-metal Apple hardware. YMMV.
  - python (developed on 3.9+)
  - OpenAI API key (in the future I intend to support other chatbots including local LLMs)
 
@@ -54,13 +54,25 @@
 
  ## Future features in progress
  not necessarily in this order:
- - [o] multi-modality (image attachments)
+ - [x] image attachments
+ - [ ] image generation
  - [ ] OS calendar and notes integration / automation
  - [ ] filesystem and datastore RAG
  - [ ] async / thread
- - [o] use new OpenAI assistants
+ - [ ] use new OpenAI assistants
  - [ ] optimize / migrate from imessage_reader (cleanup all those indices)
 
  ## Acknowledgements
  - [imessage_reader](https://github.com/niftycode/imessage_reader) for providing the library which underpins the method by which iMessage database is accessed. A fork of the repository and modifications were made to access some additional tables/fields.
  - [py-imessage-shortcuts](https://github.com/kevinschaich/py-imessage-shortcuts) for the shortcut which enables iMessage automation
+
+
+## PIP Installs
+
+pip install openai
+pip install cassandra-driver
+pip install --upgrade astrapy
+pip install cassandra-driver datastax
+pip install astrapy
+pip install faiss-cpu
+pip install tiktoken

@@ -29,7 +29,7 @@ def update_last_processed_id(last_id, file_path=FILEPATH_LAST_MSG_ID):
         file.write(str(last_id))
 
 def get_new_messages(last_id, limit):
-    fs = fetch_data.FetchData(DB_PATH)
+    fs = fetch_data.FetchData(MESSAGE_DB_PATH)
     messages = fs.get_messages()
     new_messages = []
     for message in messages:
@@ -87,7 +87,7 @@ def get_thread_messages(thread, all_messages):
     return thread_messages
 
 def get_thread_recipients(message):
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(MESSAGE_DB_PATH)
     cursor = conn.cursor()
     
     # Retrieve the chat_id from the chat_message_join table using the constant message ROWID
@@ -137,33 +137,43 @@ def build_prompt_conversation(thread_messages):
 
     for thread_message in messages_to_process:
         if thread_message[5]:
-            conversation.append({"role": "assistant", "content": thread_message[1]})
+            conversation_message = {
+                "role": "assistant",
+                "content": thread_message[1]
+            }
+            conversation.append(conversation_message)
         
         else:    
-            # conversation.append({"role": "user", "imessage_id": f"{thread_message[0]}", "content": f"{thread_message[0]} says:{thread_message[1]}"}) # this also adds ID of the sender (important in the case of group chats)
-
-            # content - text message
+            # content - text for this thread_message
             content_text = []
-            content_text.append({"type": "text" ,"text" : f"{thread_message[0]} says:{thread_message[1]}"})
-            # content_text.append({ "text" : f"{thread_message[0]['user_id']} says:{thread_message[0]['message']}"})
+            text_message = {
+                "type": "text",
+                "text": f"{thread_message[0]} says:{thread_message[1]}"
+            }
+            content_text.append(text_message)
             content_all = content_text
 
-            # content - attachments
-            content_attachment = []
+            # content - attachments for this thread_message
+            content_attachments = []
             if thread_message[8]:
-                content_attachment = process_attachments(thread_message)
-                content_all = content_text + content_attachment if content_attachment else content_text
+                content_attachments = process_attachments(thread_message)
+                content_all = content_text + content_attachments if content_attachments else content_text
 
             # conversation
-            conversation.append({"role": "user", "content": content_all}) 
+            conversation_message = {
+                "role": "user",
+                "content": content_all
+            }
+            conversation.append(conversation_message) 
             
     return conversation
 
 def process_attachments(thread_message):
-    content_attachment = []
+    content_attachments = []
     attachments = get_attachments(list_of_message_ids=[thread_message[7]]) # only passing the one message ID
     for attachment in attachments:
 
+        # retrieve attachment filename from the record
         attachment_filename = attachment[2]
         
         # filename and path components of attachment file
@@ -171,61 +181,40 @@ def process_attachments(thread_message):
 
         print(f"\nAttachment filename: {attachment_filename}")
 
-        # check file exists
+        # check if file exists
         if not os.path.exists(attachment_filename_expanded):
             print(f"Attachment file does not exist: {attachment_filename}")
             continue
 
-        # if a heic file, convert to png
+        # convert HEIC to PNG if necessary
         if attachment_filename_extension.lower() == '.heic':
-            heic2png = HEIC2PNG(attachment_filename_expanded, quality=90)
-            
-            # only if png doesn't already exist
-            if not os.path.exists(attachment_filename_path + '/' + attachment_filename_stem + '.png'):
-                heic2png.save()
-                # attachment_filename = heic2png.output_file
-            attachment_filename = attachment_filename_path + '/' + attachment_filename_stem + '.png'
+            attachment_filename = heic_to_png(attachment_filename_expanded)
 
-            # filename and path components of png file
-            attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(str(attachment_filename))
+        # filename and path components of the new file (could be PNG or original)
+        attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
 
         # check valid file type
         if attachment_filename_extension.lower() not in ['.png', '.jpg', '.jpeg', '.gif']:
             print(f"Attachment file is not a valid image: {attachment_filename_extension}")
             continue
 
-        # check file size
-        file_size = os.path.getsize(attachment_filename_expanded)
-        attachment_filename_resized = attachment_filename_path + '/' + attachment_filename_stem + '_resized_for_AI' + attachment_filename_extension
-        image = Image.open(os.path.expanduser(attachment_filename_expanded))
-
-        while file_size > FILE_SIZE_LIMIT:
-            print(f"Attachment file is too large: {file_size} bytes, resizing ...")
-            
-            # resize as ratio of actual file_size to FILE_SIZE_LIMIT
-            resize_ratio = FILE_SIZE_LIMIT / file_size
-            original_width, original_height = image.size
-            new_width = int(original_width * resize_ratio)
-            new_height = int(original_height * resize_ratio)
-            resized_image = image.resize((new_width, new_height))
-            resized_image.save(os.path.expanduser(attachment_filename_resized))
-            file_size = os.path.getsize(os.path.expanduser(attachment_filename_resized))
-            image = Image.open(os.path.expanduser(attachment_filename_resized))
-
-            # point to the resized file
-            attachment_filename = attachment_filename_resized
-
-            # filename and path components
-            attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
+        # check and resize file if necessary
+        resize_file_to_fit(attachment_filename_expanded)
 
         # convert image to base64
         attachment_encode = encode_image(attachment_filename)
         attachment_type = attachment_filename.split('.')[-1]
-        content_attachment.append({"type": "image_url", "image_url": {"url": f"data:image/{attachment_type};base64,{attachment_encode}"}})
+        attachment = {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/{attachment_type};base64,{attachment_encode}"
+            }
+        }
+        content_attachments.append(attachment)
         # content_attachment.append({"type": "image_url", "url": f"data:image/jpeg;base64,{attachment_encode}"})
         print(f"Attachment file processed: {attachment_filename}\n")
 
-    return content_attachment
+    return content_attachments
 
 def get_filename_components(attachment_filename):
     attachment_filename_expanded = os.path.expanduser(attachment_filename)
@@ -239,6 +228,45 @@ def encode_image(image_path):
   full_path = os.path.expanduser(image_path)
   with open(full_path, "rb") as image_file:
     return base64.b64encode(image_file.read()).decode('utf-8')
+
+def heic_to_png(heic_file_path):
+    attachment_filename_path, attachment_filename_stem = os.path.split(heic_file_path)
+    png_file_path = os.path.join(attachment_filename_path, attachment_filename_stem + '.png')
+    
+    # only if png doesn't already exist
+    if not os.path.exists(png_file_path):
+        heic2png = HEIC2PNG(heic_file_path, quality=90)
+        heic2png.save()
+    
+    return png_file_path
+
+def resize_file_to_fit(file_path, size_limit = FILE_SIZE_LIMIT):
+    # Decompose file path into components
+    attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(file_path)
+    
+    # Check file size
+    file_size = os.path.getsize(file_path)
+    attachment_filename_resized = attachment_filename_path + '/' + attachment_filename_stem + '_resized_for_AI' + attachment_filename_extension
+    image = Image.open(file_path)
+
+    while file_size > size_limit:
+        print(f"Attachment file is too large: {file_size} bytes, resizing ...")
+        
+        # Resize as ratio of actual file_size to size_limit
+        resize_ratio = size_limit / file_size
+        original_width, original_height = image.size
+        new_width = int(original_width * resize_ratio)
+        new_height = int(original_height * resize_ratio)
+        resized_image = image.resize((new_width, new_height))
+        resized_image.save(attachment_filename_resized)
+        file_size = os.path.getsize(attachment_filename_resized)
+        image = Image.open(attachment_filename_resized)
+
+        # Update file_path to point to the resized file
+        file_path = attachment_filename_resized
+
+    print(f"Attachment file resized to: {file_size} bytes")
+    return file_path
 
 def analyze_thread(thread_messages):
     # determine how many contiguous messages at the end of the thread are not from the assistant,
@@ -272,7 +300,7 @@ def get_attachments(list_of_message_ids) -> list:
         f"WHERE message_attachment_join.message_id IN ({placeholders})"
     )
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(MESSAGE_DB_PATH)
     cursor = conn.cursor()
     cursor.execute(sql_query, list_of_message_ids)
     results = cursor.fetchall()
@@ -336,28 +364,14 @@ def main():
                 # build conversation object for this thread
                 conversation = build_prompt_conversation(thread_messages)
 
-                # # analyze the thread
-                # thread_instructions = []
-                # thread_instructions = analyze_thread(thread_messages)
-
-                # # call the plugins required for this thread
-                # conversation = []
-                # conversation = process_plugins(thread_messages)
-
                 # telemetry
                 print(f"\n\tthread: {thread_index+1} of {len(response_queue)}")
                 print(f"\t\tthread_messages: {len(thread_messages)}")
                 # print(f"\t\tthread_instructions: {len(thread_instructions)}")
                 print(f"\t\tconversation: {len(conversation)}")
 
-                # Build the prompt to develop instructions for replying to the conversation
-                # completion_instructions = build_prompt_analysis(conversation, prompts['prompt_analysis'])
-
-                # Uses completion_instructions to get a list of instructional steps ChatGPT would take to respond to the person's text message
-                # new_message = completed_assistant(thread_messages[-1][1], conversation)
-                # new_instructions = ChatGPT_completion(completion_instructions).choices[0].message.content
-
                 # Build the prompt to complete the conversation - not for use with assistants
+                # completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
                 completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
 
                 # Uses completion_reply function to get ChatGPT response to the person's text message

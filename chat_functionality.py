@@ -4,12 +4,13 @@ import time
 import yaml
 import httpx
 
-client = OpenAI(api_key=APIKEY_OPENAI)
+# OpenAI client for chat
+client_chat = OpenAI(api_key=APIKEY_OPENAI)
 
 # Change model and parameters as needed
 # Going forward, create a LLM completion object for each LLMN model you want to use. This will allow you to use multiple models in the same script.
 
-def ChatGPT_completion(for_completion):
+def ChatGPT_completion(client, for_completion):
     # imessage_id and attachment will be invalid in the message_history object. Remove it.
     for m in for_completion:
         m.pop('imessage_id', None)
@@ -20,7 +21,8 @@ def ChatGPT_completion(for_completion):
             model="gpt-4o",
             messages=for_completion,
             max_tokens=1000,
-            temperature=0.2)
+            temperature=0.2,
+            tools=None)
         # response.raise_for_status()  # Raises an error for 4xx/5xx responses
         return response.choices[0].message.content
     except openai.APIError as e:

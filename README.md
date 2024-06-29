@@ -52,14 +52,19 @@
  ### Program Configuration
  - ...
 
- ## Future features in progress
+ ## Future features / Fixes / in progress
  not necessarily in this order:
  - [x] image attachments
- - [ ] image generation
+ - [x] functions: equip for
+ - [x] functions: implement generate image
+ - [ ] functions: create a reminder in calendar
+ - [x] filesystem and datastore RAG: equip for
+ - [ ] filesystem and datastore RAG: implement ...
+ - [ ] rudimentary auth / authorized chat participants
  - [ ] OS calendar and notes integration / automation
- - [ ] filesystem and datastore RAG
  - [ ] async / thread
  - [ ] use new OpenAI assistants
+ - [ ] cleanup namespaces
  - [ ] optimize / migrate from imessage_reader (cleanup all those indices)
 
  ## Acknowledgements
@@ -67,7 +72,9 @@
  - [py-imessage-shortcuts](https://github.com/kevinschaich/py-imessage-shortcuts) for the shortcut which enables iMessage automation
 
 
-## PIP Installs
+## PIP/conda Installs
+
+pip install openpyxl
 
 pip install openai
 pip install cassandra-driver
@@ -76,3 +83,13 @@ pip install cassandra-driver datastax
 pip install astrapy
 pip install faiss-cpu
 pip install tiktoken
+
+pip install imessage-reader
+pip install py-imessage-shortcuts
+
+pip install tenacity
+pip install termcolor
+
+conda install yaml
+conda install pyyaml
+

@@ -4,12 +4,19 @@ import time
 import os
 import subprocess
 import base64
+
 from chat_functionality import *
+from tools_use import *
+from tools_def import tools
 from config import *
+
+import re
+import json
+
 import imessage
+
 from heic2png import HEIC2PNG
 from PIL import Image
-
 
 # Get the last processed message ID from a file
 def get_last_processed_id(file_path=FILEPATH_LAST_MSG_ID):
@@ -312,6 +319,22 @@ def get_attachments(list_of_message_ids) -> list:
 def process_plugins(thread_messages):
     pass
 
+import re
+import json
+
+import re
+
+def remove_json_like_objects(text):
+    # Regular expression pattern to match `{"` followed by any characters (non-greedy) and ending with `"}`.
+    # The pattern uses `\"` to match double quotes literally and `.*?` for non-greedy matching of any characters.
+    pattern = r'\{\".*?"\}'
+    
+    # Use re.sub() to replace all occurrences of the pattern with an empty string.
+    modified_text = re.sub(pattern, '', text)
+    
+    return modified_text
+
+
 # check for macOS version to determine whether to use AppleScript or Shortcuts
 def check_macos_version():
     version = os.system("sw_vers -productVersion")
@@ -321,12 +344,20 @@ def check_macos_version():
         return False
 
 # AppleScript to send an iMessage
-def send_imessage(phone_number, message):
+def send_via_applescript(phone_number, message):
     subprocess.run(["osascript", script_path, phone_number, message])
 
-def main():
+# Send an iMessage using either AppleScript or Shortcuts
+def send_imessage(thread_recipients, thread, new_message):
+    if check_macos_version:
+        imessage.send(thread_recipients, new_message)
+    else:
+        if thread[3] is None:
+            send_via_applescript(thread[2], new_message)
 
 # Main loop
+def main():
+
     last_processed_id = get_last_processed_id()
     prompts = load_prompts('prompts.yaml')
 
@@ -366,34 +397,68 @@ def main():
                 conversation = build_prompt_conversation(thread_messages)
 
                 # telemetry
-                print(f"\n\tthread: {thread_index+1} of {len(response_queue)}")
-                print(f"\t\tthread_messages: {len(thread_messages)}")
-                # print(f"\t\tthread_instructions: {len(thread_instructions)}")
-                print(f"\t\tconversation: {len(conversation)}")
+                print(f"\nthread: {thread_index+1} of {len(response_queue)}")
+                print(f"thread_messages: {len(thread_messages)}")
+                print(f"conversation: {len(conversation)}")
 
                 # Build the prompt to complete the conversation - not for use with assistants
                 # completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
                 completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
+                completion_reply_tools = build_prompt_response_tools(conversation)
 
                 # Uses completion_reply function to get ChatGPT response to the person's text message
-                # new_message = completed_assistant(thread_messages[-1][1], conversation)
-                if USE_ASSISTANT:
-                    new_message = ChatGPT_assistant(prompts['prompt_response'],conversation)
-                else:
-                    new_message = ChatGPT_completion(completion_reply)
+                new_message = ChatGPT_completion(client_chat, completion_reply)
 
                 # Print to console
-                print(f"\t\tThread info: {thread}")
-                # print(f"\t\t\tResponse: {new_instructions}")
-                print(f"\t\t\tResponse: {new_message}")
+                print(f"Thread info: {thread}")
+                print(f"Response: {new_message}")
 
-                # Send the message via Shortcuts - if macOS Monterey 12+                   
-                # Send the message via subprocess - if only AppleScript is available
-                if check_macos_version:
-                    imessage.send(thread_recipients, new_message)
-                else:
-                    if thread[3] is None:
-                        send_imessage(thread[2], new_message)
+                # Send the response via iMessage
+                send_imessage(thread_recipients, thread, remove_json_like_objects(new_message))
+
+                # invoke tools functions
+                tools_message = ChatGPT_completion_tools(client_tools, completion_reply_tools, tools)  
+                tool_calls = tools_message.choices[0].message.tool_calls
+
+                # Process the tool calls
+                new_message_image = None
+                if tool_calls:
+                    print(f"\nReponse of Tool calls. No. of calls: {len(tool_calls)}")
+                    for tool_call in tool_calls:
+                        function_name = tool_call.function.name
+                        function_args = json.loads(tool_call.function.arguments)                    
+
+                        if function_name == "generate_image":
+                            response_generate_image = generate_image(client_tools, **function_args)
+                            new_message_image = response_generate_image.data[0].url
+                        else:
+                            # For now, just print
+                            print (f"\nFunction: {function_name}\nArguments: {function_args}\n")
+
+                        # # If the function returns a response, append it to the completion_reply
+                        # function_response = function_name(
+                        #     **function_args
+                        # )
+                        # if function_response:
+                        #     completion_reply.append(
+                        #         {
+                        #             "role": "tool",
+                        #             "tool_call_id": tool_call.id,
+                        #             "name": function_name,
+                        #             "content": function_response
+                        #         }
+                        #     )
+
+                # # Print to console
+                # print(f"Thread info: {thread}")
+                # print(f"Response: {new_message}")
+
+                # # Send the response via iMessage
+                # send_imessage(thread_recipients, thread, new_message)
+
+                if new_message_image:
+                    print(f"Response Image: {new_message_image}")
+                    send_imessage(thread_recipients, thread, new_message_image)
 
                 # Update the last processed message ID
                 last_processed_id = thread[0]

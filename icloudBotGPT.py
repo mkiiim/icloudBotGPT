@@ -7,7 +7,7 @@ import base64
 
 from chat_functionality import *
 from tools_use import *
-from tools_def import tools
+from tools_def import my_tools
 from config import *
 
 import re
@@ -131,7 +131,7 @@ def get_thread_recipients(message):
 
     return handle_ids_list
 
-def build_prompt_conversation(thread_messages):
+def build_prompt_conversation_O(thread_messages):
     
     conversation = []
 
@@ -163,7 +163,7 @@ def build_prompt_conversation(thread_messages):
             # content - attachments for this thread_message
             content_attachments = []
             if thread_message[8]:
-                content_attachments = process_attachments(thread_message)
+                content_attachments = process_attachments_O(thread_message)
                 content_all = content_text + content_attachments if content_attachments else content_text
 
             # conversation
@@ -175,7 +175,52 @@ def build_prompt_conversation(thread_messages):
             
     return conversation
 
-def process_attachments(thread_message):
+def build_prompt_conversation_A(thread_messages):
+    
+    conversation = []
+
+    # Because of ChatGPT's limit on the amount of content you upload, this only retrieves the last {THREAD_MSG_LIMIT} text messages sent between you and a recipient
+    message_quant = len(thread_messages)
+
+    # determine the range messages to process
+    # if the conversation history between you and the recipient is less than {THREAD_MSG_LIMIT}, then it just uploads the entire thing
+    messages_to_process = thread_messages if message_quant <= THREAD_MSG_LIMIT else thread_messages[-THREAD_MSG_LIMIT:]
+
+    for thread_message in messages_to_process:
+        if thread_message[5]:
+            conversation_message = {
+                "role": "assistant",
+                "content": thread_message[1]
+            }
+            conversation.append(conversation_message)
+        
+        else:    
+            # content - text for this thread_message
+            content_text = []
+            text_message = {
+                "type": "text",
+                "text": f"{thread_message[0]} says:{thread_message[1]}"
+            }
+            content_text.append(text_message)
+            content_all = content_text
+
+            # content - attachments for this thread_message
+            content_attachments = []
+            if thread_message[8]:
+                content_attachments = process_attachments_A(thread_message)
+                content_all = content_text + content_attachments if content_attachments else content_text
+
+            # conversation
+            conversation_message = {
+                "role": "user",
+                "content": content_all
+            }
+            conversation.append(conversation_message) 
+            
+    return conversation
+
+
+def process_attachments_O(thread_message):
     content_attachments = []
     attachments = get_attachments(list_of_message_ids=[thread_message[7]]) # only passing the one message ID
     for attachment in attachments:
@@ -208,12 +253,64 @@ def process_attachments(thread_message):
         # convert image to base64
         attachment_encode = encode_image(attachment_filename)
         attachment_type = attachment_filename.split('.')[-1]
+        
+        # OpenAI
         attachment = {
             "type": "image_url",
             "image_url": {
                 "url": f"data:image/{attachment_type};base64,{attachment_encode}"
             }
         }
+        
+        content_attachments.append(attachment)
+        print(f"Attachment file processed: {attachment_filename}\n")
+
+    return content_attachments
+
+def process_attachments_A(thread_message):
+    content_attachments = []
+    attachments = get_attachments(list_of_message_ids=[thread_message[7]]) # only passing the one message ID
+    for attachment in attachments:
+
+        # retrieve attachment filename from the record
+        attachment_filename = attachment[2]
+        attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
+
+        print(f"\nAttachment filename: {attachment_filename}")
+
+        # check if file exists
+        if not os.path.exists(attachment_filename_expanded):
+            print(f"Attachment file does not exist: {attachment_filename}")
+            continue
+
+        # convert HEIC to PNG if necessary
+        if attachment_filename_extension.lower() == '.heic':
+            attachment_filename = heic_to_png(attachment_filename_expanded)
+        attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
+
+        # check valid file type
+        if attachment_filename_extension.lower() not in ['.png', '.jpg', '.jpeg', '.gif']:
+            print(f"Attachment file is not a valid image: {attachment_filename_extension}")
+            continue
+
+        # check and resize file if necessary
+        attachment_filename = resize_file_to_fit(attachment_filename_expanded)
+        attachment_filename_expanded, attachment_filename_path, attachment_filename_basename, attachment_filename_stem, attachment_filename_extension = get_filename_components(attachment_filename)
+
+        # convert image to base64
+        attachment_encode = encode_image(attachment_filename)
+        attachment_type = attachment_filename.split('.')[-1]
+        
+        # Anthropic
+        attachment = {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": f"image/{attachment_type}",
+                "data": attachment_encode
+            }
+        }
+
         content_attachments.append(attachment)
         print(f"Attachment file processed: {attachment_filename}\n")
 
@@ -394,43 +491,80 @@ def main():
                 thread_recipients = get_thread_recipients(thread_messages[-1][7])        
 
                 # build conversation object for this thread
-                conversation = build_prompt_conversation(thread_messages)
-
+                conversation_O = build_prompt_conversation_O(thread_messages)
+                conversation_A = build_prompt_conversation_A(thread_messages)
+                
                 # telemetry
                 print(f"\nthread: {thread_index+1} of {len(response_queue)}")
                 print(f"thread_messages: {len(thread_messages)}")
-                print(f"conversation: {len(conversation)}")
+                print(f"conversation_O: {len(conversation_O)}")
+                print(f"conversation_A: {len(conversation_A)}")
 
                 # Build the prompt to complete the conversation - not for use with assistants
                 # completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
-                completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
-                completion_reply_tools = build_prompt_response_tools(conversation)
+                completion_reply_O = build_prompt_response(conversation_O, prompts['prompt_response'])
+                completion_reply_tools_O = build_prompt_response_tools(conversation_O)
+                completion_reply_A = build_prompt_response(conversation_A, prompts['prompt_response'])
+                completion_reply_tools_A = build_prompt_response_tools(conversation_A)
 
                 # Uses completion_reply function to get ChatGPT response to the person's text message
-                new_message = ChatGPT_completion(client_chat, completion_reply)
+                client_chat_O = OpenaiLLMObject()
+                client_chat_completion_O = new_message=client_chat_O.completion(completion_reply_O)
+                new_message_O = client_chat_completion_O.choices[0].message.content
 
                 # Print to console
-                print(f"Thread info: {thread}")
-                print(f"Response: {new_message}")
+                print(f"\nThread info: {thread}")
+                print(f"\nResponse from {client_chat_O.name}:\n{new_message_O}")
+
+                # Uses completion_reply function to get Claude's response to the person's text message
+                client_chat_A = AnthropicLLMObject()
+                client_chat_completion_A = new_message=client_chat_A.completion(completion_reply_A)
+                new_message_A = client_chat_completion_A.content[0].text
+
+                # Print to console
+                print(f"\nThread info: {thread}")
+                print(f"\nResponse from {client_chat_A.name}:\n{new_message_A}")
 
                 # Send the response via iMessage
+                # for now, use Anthropic
+                new_message = new_message_A
                 send_imessage(thread_recipients, thread, remove_json_like_objects(new_message))
 
                 # invoke tools functions
-                tools_message = ChatGPT_completion_tools(client_tools, completion_reply_tools, tools)  
-                tool_calls = tools_message.choices[0].message.tool_calls
+                client_tools_O = OpenaiLLMObject(tools=my_tools)
+                client_tools_completion_O = client_tools_O.completion(completion_reply_tools_O, tools=my_tools) 
+                tools_message_O = client_tools_completion_O.choices[0].message.content
+                tool_calls_O = client_tools_completion_O.choices[0].message.tool_calls
 
-                # Process the tool calls
+                client_tools_A = AnthropicLLMObject(tools=my_tools)
+                client_tools_completion_A = client_tools_A.completion(completion_reply_tools_A, tools=my_tools) 
+                tools_message_A = client_tools_completion_A.content[0].text
+                tool_calls_A = client_tools_completion_A.content[0]
+
+                # Process the tool calls - Anthropic
+                if client_tools_completion_A.stop_reason == "tool_use":
+                    print(f"\nResponse of {client_tools_A.name} Tool calls. No. of calls: {len(client_tools_completion_A.content[1:])}")
+                    names = []
+                    for tool in client_tools_completion_A.content[1:]:
+                        names.append(tool.name)
+                        function_name = tool.name
+                        function_args = tool.input                    
+                        print (f"\nFunction: {function_name}\nArguments: {function_args}\n")
+
+                # Process the tool calls - OpenAI
                 new_message_image = None
-                if tool_calls:
-                    print(f"\nReponse of Tool calls. No. of calls: {len(tool_calls)}")
-                    for tool_call in tool_calls:
+                if tool_calls_O:
+                    print(f"\nResponse of {client_tools_O.name} Tool calls. No. of calls: {len(tool_calls_O)}")
+                    for tool_call in tool_calls_O:
                         function_name = tool_call.function.name
                         function_args = json.loads(tool_call.function.arguments)                    
 
                         if function_name == "generate_image":
-                            response_generate_image = generate_image(client_tools, **function_args)
-                            new_message_image = response_generate_image.data[0].url
+                            # response_generate_image = generate_image(client_tools_O, **function_args)
+                            # new_message_image = response_generate_image.data[0].url
+                            client_image_O = OpenaiDalleObject()
+                            client_image_completion_O = client_image_O.completion(**function_args)
+                            new_message_image = client_image_completion_O.data[0].url
                         else:
                             # For now, just print
                             print (f"\nFunction: {function_name}\nArguments: {function_args}\n")

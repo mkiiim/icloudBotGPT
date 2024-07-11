@@ -11,7 +11,7 @@
  I find that (application) context switching is one of the last user experience hurdles when it comes to seamlessly integrating computing into our everyday workflow. We have, of course, become use to it as computers have traditionally provided the tools (in the form of applications) that aided us in our day to day activities. But as AI continues to embed itself in applications, OS, and hardware (think CoPilot integrated at the PC hardware and Windows OS level), we'll see an evolution where AI provides integration and glue that blurs the boundaries between the atomic steps which require the use of, and a context switch to, specialized applications/tools.
 
  ### Current Capabilities - forever WIP
- - OpenAI completions or assistants
+ - OpenAI and Anthropic completions
  - one on one chats with LLM
  - group chats with LLM
  - works with image attachments
@@ -63,9 +63,12 @@
  - [ ] rudimentary auth / authorized chat participants
  - [ ] OS calendar and notes integration / automation
  - [ ] async / thread
+ - [x] ability to use other LLMs - Anthropic for now
+ - [ ] remove/refactor redundant methods (OpenAI vs Anthropic). make good for any LLM
  - [ ] use new OpenAI assistants
  - [ ] cleanup namespaces
  - [ ] optimize / migrate from imessage_reader (cleanup all those indices)
+
 
  ## Acknowledgements
  - [imessage_reader](https://github.com/niftycode/imessage_reader) for providing the library which underpins the method by which iMessage database is accessed. A fork of the repository and modifications were made to access some additional tables/fields.
@@ -74,22 +77,24 @@
 
 ## PIP/conda Installs
 
-pip install openpyxl
-
-pip install openai
-pip install cassandra-driver
-pip install --upgrade astrapy
-pip install cassandra-driver datastax
-pip install astrapy
-pip install faiss-cpu
-pip install tiktoken
-
-pip install imessage-reader
-pip install py-imessage-shortcuts
-
-pip install tenacity
-pip install termcolor
-
-conda install yaml
-conda install pyyaml
+pip install openpyxl  
+  
+pip install openai  
+pip install anthropic  
+  
+pip install cassandra-driver  
+pip install --upgrade astrapy  
+pip install cassandra-driver datastax  
+pip install astrapy  
+pip install faiss-cpu  
+pip install tiktoken  
+  
+pip install imessage-reader  
+pip install py-imessage-shortcuts  
+  
+pip install tenacity  
+pip install termcolor  
+  
+conda install yaml  
+conda install pyyaml  
 

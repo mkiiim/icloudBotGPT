@@ -1,31 +1,38 @@
 import json
 import os
 from openai import OpenAI
-from tenacity import retry, wait_random_exponential, stop_after_attempt
 from termcolor import colored
 
-from tools_def import tools
+from tools_def import my_tools
 
 from chat_functionality import *
 from config import *
 
-# separate OpenAI client for tools
-client_tools = OpenAI(api_key=APIKEY_OPENAI)
+def transform_function_toAnthropic(OpenAI_tool):
+    new_tool = {
+        "name": OpenAI_tool["function"]["name"],
+        "description": OpenAI_tool["function"]["description"],
+        "input_schema": {
+            "type": "object",
+            "properties": OpenAI_tool["function"]["parameters"]["properties"],
+            "required": OpenAI_tool["function"]["parameters"]["required"],
+        }
+    }
+    return new_tool
 
-@retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
-def ChatGPT_completion_tools(client, messages, tools=None, tool_choice=None, model=GPT_MODEL):
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            tools=tools,
-            tool_choice=tool_choice,
-        )
-        return response
-    except Exception as e:
-        print("Unable to generate ChatCompletion response")
-        print(f"Exception: {e}")
-        return e
+
+def transform_tools(OpenAI_tools, transform_function):
+    my_tools_transformed = []
+
+    # Parse the JSON list of OpenAI_tools
+    tools_list = OpenAI_tools
+    
+    # Apply the transformation function to each tool
+    for tool in tools_list:
+        transformed_tool = transform_function(tool)
+        my_tools_transformed.append(transformed_tool)
+    
+    return my_tools_transformed
 
 def pretty_print_conversation(messages):
     role_to_color = {
@@ -111,13 +118,18 @@ def demo():
         }
     )
 
-    chat_response = ChatGPT_completion_tools(
-        client_tools, messages, tools=tools
-    )
-    assistant_message = chat_response.choices[0].message
-    messages.append(assistant_message)
+    client_chat = AnthropicLLMObject()
+    client_chat_completion = client_chat.completion(messages)
+    assistant_message = client_chat_completion
+    messages.append(
+        {'role': 'assistant', 'content': assistant_message}
+        )
 
-    tool_calls = assistant_message.tool_calls
+    client_tools = OpenaiLLMObject()
+    client_tools_completion = client_tools.completion(messages, tools=my_tools)
+    assistant_tools = client_tools_completion.message.tool_calls
+
+    tool_calls = assistant_tools
     for tool_call in tool_calls:
         function_name = tool_call.function.name
         function_args = json.loads(tool_call.function.arguments)

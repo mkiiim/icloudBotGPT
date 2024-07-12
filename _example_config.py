@@ -1,20 +1,32 @@
 import openai
+import anthropic
 import os
+import json
 
-APIKEY_OPENAI = os.getenv('APIKEY_OPENAI')
-EMBEDDING_ENGINE = "text-embedding-ada-002"
-EMBEDDING_DIMENSION = 1536
-MAX_TOKENS_PER_FILE = 128
-
-# *YOUR* username, the one to which this bot will be subservient
-# This is *NOT* the username of the bot!
-# This user will need to have an account on the *SAME MACHINE* as the bot
-# in order to more easily facilitate access to this users' documents
-# and application data (e.g. calendars, notes, etc.). This will more easily
+# *Your* username, the one to which this bot will be subservient
+# This user will need to have an account on the same machine as the bot
+# in order to more easily facilitate access the documents and application data
+# (e.g. calendars, notes, etc.) for this user. This will more easily
 # allow for "personalized context" that the bot can use to generate more
 # relevant responses.
 USERNAME = "<your_username>"
 
+# OpenAI
+APIKEY_OPENAI = os.getenv('APIKEY_OPENAI')
+GPT_MODEL = "gpt-4o"
+EMBEDDING_ENGINE = "text-embedding-ada-002"
+EMBEDDING_DIMENSION = 1536
+MAX_TOKENS_PER_FILE = 128
+
+# Anthropic
+APIKEY_ANTHROPIC = os.getenv('APIKEY_ANTHROPIC')
+ANTHROPIC_MODEL = "claude-3-5-sonnet-20240620"
+
+# LLMObject
+MAX_TOKENS = 1000
+TEMPERATURE = 0.2
+
+# Path to the iMessage database
 MESSAGE_DB_PATH = f"/Users/{os.getenv('USER')}/Library/Messages/chat.db"
 PROMPTS_FILE = f"/Users/{os.getenv('USER')}/Projects/icloudBotGPT/prompts.yml"
 

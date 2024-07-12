@@ -236,7 +236,6 @@ def main():
                 # print(f"conversation_A: {len(conversation_A)}")
 
                 # Build the prompt to complete the conversation - not for use with assistants
-                # completion_reply = build_prompt_response(conversation, prompts['prompt_response'])
                 client_chat_O.build_prompt_response(prompts['prompt_response'])
                 client_chat_A.build_prompt_response(prompts['prompt_response'])
 
@@ -258,8 +257,8 @@ def main():
 
                 # Send the response via iMessage
                 # for now, use Anthropic
-                # new_message = new_message_A
-                # send_imessage(thread_recipients, thread, remove_json_like_objects(new_message))
+                new_message = new_message_A
+                send_imessage(thread_recipients, thread, remove_json_like_objects(new_message))
 
                 # invoke tools functions
                 client_tools_O = OpenaiLLMObject(tools=my_tools)
@@ -291,6 +290,16 @@ def main():
                         print(f"\nFunction {i+1}: {function_name}")
                         print(json.dumps(function_args, indent=4))
 
+                        # if function_name == "generate_image":
+                        #     # response_generate_image = generate_image(client_tools_O, **function_args)
+                        #     # new_message_image = response_generate_image.data[0].url
+                        #     client_image_O = OpenaiDalleObject()
+                        #     client_image_completion_O = client_image_O.completion(**function_args)
+                        #     new_message_image = client_image_completion_O.data[0].url
+                        # else:
+                        #     pass
+
+
                 # Process the tool calls - OpenAI
                 if client_tools_O.tool_calls:
                     print(f"\nResponse of {client_tools_O.name} Tool calls.\nNo. of calls: {len(client_tools_O.tool_calls)}")
@@ -315,8 +324,8 @@ def main():
                     send_imessage(thread_recipients, thread, new_message_image)
 
                 # Update the last processed message ID
-                # last_processed_id = thread[0]
-                # update_last_processed_id(last_processed_id)
+                last_processed_id = thread[0]
+                update_last_processed_id(last_processed_id)
 
             # Wait for a specified interval before checking for new messages
             time.sleep(CHECK_INTERVAL)

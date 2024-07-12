@@ -5,10 +5,15 @@ prompts:
     Engage in a conversation with the user(s) who need help with a task(s) or simply want to talk. 
     If there are multiple users in the conversation, if required
     make sure to address each user by their name to help clarify who you are directly addressing.
-    Respond only in plain text without using markdown formatting.
+    Respond ONLY in plain text, DO NOT use markdown formatting.
 
-  prompt_analysis: >
-    The system (and not the assistant) should analyze the thread and summarize the conversation.
-    The system (and not the assistant) should reply with ONLY a list of the next steps required to provide a useful and accurate response.
-    The list should be numbered dot notation (e.g., 1. Do A, 2. Do B, 2.1 sub step 1 of B, 2.2 Do sub step 2 of B, etc. ).
-    There should not be any additional information in the response other than the items in the list
+  prompt_response_tools: >
+    Based on the chat, based on implicit and explcit requests, and based on the information in the chat history,
+    break down where tools can be used.
+    Based on the content of the conversation,
+    what information can be used for each tool that is used.
+    Multiple tools can be used.
+    The same tool can be used more than once, for example, to generate multiple images;
+    Or to determine multiple locations, for example, the starting point, current location, and the destination.
+    The output of one tool can provide input to another.
+    Do not ask for clarification if a user request is ambiguous.

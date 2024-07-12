@@ -33,9 +33,11 @@ class LLMObject(ABC):
         if tools is None:
             self.name = f"{__class__.__name__}_{self.uuid}"
             self.tools = []
+            self.opmode = OpMode.completion
         else:
             self.name = f"{__class__.__name__}_tools_{self.uuid}"
             self.tools = tools
+            self.opmode = OpMode.tools
 
     def build_prompt_conversation(self, thread_messages):
         self.conversation = []
@@ -163,6 +165,8 @@ class LLMObject(ABC):
     def completion(self, for_completion):
         pass
 
+
+
 class OpenaiLLMObject(LLMObject):
     def __init__(self, model_name=GPT_MODEL, max_tokens=MAX_TOKENS, temperature=TEMPERATURE, tools=None):
         super().__init__(model_name, max_tokens, temperature, tools)
@@ -204,7 +208,25 @@ class OpenaiLLMObject(LLMObject):
                 )
             
             print(f"{self.response.usage}")
+
+            # Populate tools attributes
+            if self.opmode == OpMode.tools:
+                self.tool_messages = self.response.choices[0].message.content
+                self.tool_calls_raw = []
+                if self.response.choices[0].message.tool_calls:
+                    self.tool_calls_raw = self.response.choices[0].message.tool_calls[0:]
+                    # create json of tool calls
+                    self.tool_calls = []
+                    for tool_call in self.tool_calls_raw:
+                        tool_call_json = {
+                            "name": tool_call.function.name,
+                            "arguments": json.loads(tool_call.function.arguments)
+                        }
+                        self.tool_calls.append(tool_call_json)
+                        
+            # Respond
             return self.response
+        
         except openai.APIError as e:
             #Handle API error here, e.g. retry or log
             print(f"OpenAI API returned an API Error: {e}")
@@ -293,7 +315,25 @@ class AnthropicLLMObject(LLMObject):
                 )
             
             print(f"{self.response.usage}")
+
+            # Populate tools attributes
+            if self.opmode == OpMode.tools:
+                self.tool_messages = self.response.content[0].text
+                self.tool_calls_raw = []
+                if len(self.response.content) > 1:
+                    self.tool_calls_raw = self.response.content[1:]
+                    # create json of tool calls
+                    self.tool_calls = []
+                    for tool_call in self.tool_calls_raw:
+                        tool_call_json = {
+                            "name": tool_call.name,
+                            "arguments": tool_call.input
+                        }
+                        self.tool_calls.append(tool_call_json)
+                    
+            # Respond
             return self.response
+        
         except anthropic.APIError as e:
             #Handle API error here, e.g. retry or log
             print(f"Anthropic API returned an API Error: {e}")

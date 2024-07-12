@@ -258,8 +258,8 @@ def main():
 
                 # Send the response via iMessage
                 # for now, use Anthropic
-                new_message = new_message_A
-                send_imessage(thread_recipients, thread, remove_json_like_objects(new_message))
+                # new_message = new_message_A
+                # send_imessage(thread_recipients, thread, remove_json_like_objects(new_message))
 
                 # invoke tools functions
                 client_tools_O = OpenaiLLMObject(tools=my_tools)
@@ -269,31 +269,36 @@ def main():
                 client_tools_O.build_prompt_response_tools(prompts['prompt_response_tools'])
                 client_tools_A.build_prompt_response_tools(prompts['prompt_response_tools'])
 
+                # Tools - OpenAI
                 client_tools_completion_O = client_tools_O.completion(tools=my_tools) 
-                tools_message_O = client_tools_completion_O.choices[0].message.content
-                tool_calls_O = client_tools_completion_O.choices[0].message.tool_calls
-
+                print(f"\nResponse from {client_tools_O.name} message:\n{client_tools_O.tool_messages}")
+                print(json.dumps(client_tools_O.tool_calls, indent = 4)) if client_tools_O.tool_calls else None
+                
+                # Tools - Anthropic
                 client_tools_completion_A = client_tools_A.completion(tools=my_tools) 
-                tools_message_A = client_tools_completion_A.content[0].text
-                tool_calls_A = client_tools_completion_A.content[0]
-
+                print(f"\nResponse from {client_tools_A.name} message:\n{client_tools_A.tool_messages}")
+                print(json.dumps(client_tools_A.tool_calls, indent = 4)) if client_tools_A.tool_calls else None
+                
+                # Process the tool calls - clear responses
+                new_message_image = None
+                
                 # Process the tool calls - Anthropic
-                if client_tools_completion_A.stop_reason == "tool_use":
-                    print(f"\nResponse of {client_tools_A.name} Tool calls. No. of calls: {len(client_tools_completion_A.content[1:])}")
-                    names = []
-                    for tool in client_tools_completion_A.content[1:]:
-                        names.append(tool.name)
-                        function_name = tool.name
-                        function_args = tool.input                    
-                        print (f"\nFunction: {function_name}\nArguments: {function_args}\n")
+                if client_tools_A.tool_calls:
+                    print(f"\nResponse of {client_tools_A.name} Tool calls.\nNo. of calls: {len(client_tools_A.tool_calls)}")
+                    for i, tool in enumerate(client_tools_A.tool_calls):
+                        function_name = tool['name']
+                        function_args = tool['arguments']                
+                        print(f"\nFunction {i+1}: {function_name}")
+                        print(json.dumps(function_args, indent=4))
 
                 # Process the tool calls - OpenAI
-                new_message_image = None
-                if tool_calls_O:
-                    print(f"\nResponse of {client_tools_O.name} Tool calls. No. of calls: {len(tool_calls_O)}")
-                    for tool_call in tool_calls_O:
-                        function_name = tool_call.function.name
-                        function_args = json.loads(tool_call.function.arguments)                    
+                if client_tools_O.tool_calls:
+                    print(f"\nResponse of {client_tools_O.name} Tool calls.\nNo. of calls: {len(client_tools_O.tool_calls)}")
+                    for i, tool in enumerate(client_tools_O.tool_calls):
+                        function_name = tool['name']
+                        function_args = tool['arguments']                
+                        print(f"\nFunction {i+1}: {function_name}")
+                        print(json.dumps(function_args, indent=4))
 
                         if function_name == "generate_image":
                             # response_generate_image = generate_image(client_tools_O, **function_args)
@@ -302,37 +307,16 @@ def main():
                             client_image_completion_O = client_image_O.completion(**function_args)
                             new_message_image = client_image_completion_O.data[0].url
                         else:
-                            # For now, just print
-                            print (f"\nFunction: {function_name}\nArguments: {function_args}\n")
+                            pass
 
-                        # # If the function returns a response, append it to the completion_reply
-                        # function_response = function_name(
-                        #     **function_args
-                        # )
-                        # if function_response:
-                        #     completion_reply.append(
-                        #         {
-                        #             "role": "tool",
-                        #             "tool_call_id": tool_call.id,
-                        #             "name": function_name,
-                        #             "content": function_response
-                        #         }
-                        #     )
-
-                # # Print to console
-                # print(f"Thread info: {thread}")
-                # print(f"Response: {new_message}")
-
-                # # Send the response via iMessage
-                # send_imessage(thread_recipients, thread, new_message)
-
+                # Send the Image URL via iMessage
                 if new_message_image:
                     print(f"Response Image: {new_message_image}")
                     send_imessage(thread_recipients, thread, new_message_image)
 
                 # Update the last processed message ID
-                last_processed_id = thread[0]
-                update_last_processed_id(last_processed_id)
+                # last_processed_id = thread[0]
+                # update_last_processed_id(last_processed_id)
 
             # Wait for a specified interval before checking for new messages
             time.sleep(CHECK_INTERVAL)

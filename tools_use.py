@@ -5,6 +5,9 @@ from termcolor import colored
 
 from tools_def import my_tools
 
+from enum import Enum, auto
+from enums_llms import *
+
 from chat_functionality import *
 from config import *
 

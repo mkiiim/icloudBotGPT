@@ -28,6 +28,8 @@ class LLMObject(ABC):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.conversation = []
+        self.new_message = ""
+        self.tool_calls = []
 
         self.uuid = uuid.uuid4()
         if tools is None:
@@ -209,6 +211,9 @@ class OpenaiLLMObject(LLMObject):
             
             print(f"{self.response.usage}")
 
+            # new_message
+            self.new_message = self.response.choices[0].message.content
+
             # Populate tools attributes
             if self.opmode == OpMode.tools:
                 self.tool_messages = self.response.choices[0].message.content
@@ -316,6 +321,9 @@ class AnthropicLLMObject(LLMObject):
             
             print(f"{self.response.usage}")
 
+            # new_message
+            self.new_message = self.response.content[0].text
+
             # Populate tools attributes
             if self.opmode == OpMode.tools:
                 self.tool_messages = self.response.content[0].text
@@ -353,7 +361,7 @@ class AnthropicLLMObject(LLMObject):
             return None
 
 class OpenaiDalleObject():
-    def __init__(self, model_name="dall-e-3", description = "", size = "1024x1024", quality = "standard"):
+    def __init__(self, model_name=DALL_E_MODEL, description = "", size = "1024x1024", quality = "standard"):
         
         self.client = OpenAI(api_key=APIKEY_OPENAI)
         
@@ -371,7 +379,6 @@ class OpenaiDalleObject():
         self.model = kwargs.get('model', 'dall-e-3')  # Default to 'dall-e-3' if not provided
         self.prompt = kwargs.get('description', '')  # Default to empty string if not provided
         self.size = kwargs.get('size', '1024x1024')  # Default to '1024x1024' if not provided
-        self.size = '1024x1024'
         self.quality = kwargs.get('quality', 'standard')  # Default to 'standard' if not provided
 
         try:

@@ -14,6 +14,7 @@ import json
 
 import imessage
 
+
 # Get the last processed message ID from a file
 def get_last_processed_id(file_path=FILEPATH_LAST_MSG_ID):
     try:
@@ -42,11 +43,11 @@ def get_new_messages(last_id, limit):
     return new_messages[-limit:]
 
 def update_response_queue(new_messages):
-    """ identify the unique groups of message senders / chat groups in the new messages
-        that are not from the assistant and return a list of tuples with the following format:
-        (row_id, is_from_me, handle_id, chat_id)
-        where row_id is the first message of each group of messages from the same conversation
-    """
+    # identify the unique groups of message senders / chat groups in the new messages
+    # that are not from the assistant and return a list of tuples with the following format:
+    # (row_id, is_from_me, handle_id, chat_id)
+    # where row_id is the first message of each group of messages from the same conversation
+
     response_queue = []
     for message in new_messages:
         row_id = message[7]
@@ -117,7 +118,7 @@ def get_thread_recipients(message):
         handle_ids_list = [row[0] for row in handle_ids]
 
         # Print the list of handle IDs
-        print(handle_ids_list)
+        print(f"\nthread participant(s):\n{handle_ids_list}")
     else:
         print("No chat found for the given message ROWID.")
         # handle_ids_list = []
@@ -126,9 +127,6 @@ def get_thread_recipients(message):
     conn.close()
 
     return handle_ids_list
-
-
-
 
 def analyze_thread(thread_messages):
     # determine how many contiguous messages at the end of the thread are not from the assistant,
@@ -148,7 +146,6 @@ def analyze_thread(thread_messages):
     list_of_message_ids = [message[7] for message in last_messages]
     list_of_attachments = get_attachments(list_of_message_ids)
 
-    
 def process_plugins(thread_messages):
     pass
 
@@ -188,6 +185,7 @@ def main():
 
     last_processed_id = get_last_processed_id()
     prompts = load_prompts('prompts.yaml')
+    response_queue_finished = True
 
     while True:
         try:
@@ -201,7 +199,13 @@ def main():
             
             # queue of the first message of each thread (i.e., length = how many conversation threads there are)
             response_queue = update_response_queue(new_messages)
-            
+
+            if response_queue_finished == True:
+                response_queue_finished = False
+            else:
+                lines_up = 6  # Number of lines to move up
+                print(f"\033[{lines_up}F", end="")
+
             # telemetry
             timestamp = time.localtime()
             formatted_time = time.strftime("%Y-%m-%d %H:%M:%S", timestamp)
@@ -209,112 +213,81 @@ def main():
             print(f"\nall_messages: {len(all_messages)}")
             print(f"new_messages: {len(new_messages)} since last processed message row ID: {last_processed_id}")
             print(f"response_queue: {len(response_queue)}")
-                
+
             # for each "thread" in the response queue, get a history of relevant messages in the last 1000 messages,
             # build the conversation message object as context from which to get the response from ChatGPT,
             # and send the reply message from ChatGPT out via iMessage
             for thread_index, thread in enumerate(response_queue):
-                
+
                 # get all messsages in the thread
-                thread_messages = get_thread_messages(thread, all_messages)        
+                thread_messages = get_thread_messages(thread, all_messages)  
+
+                # telemetry
+                print(f"\nthread: {thread_index+1} of {len(response_queue)}")
+                print(f"thread_messages: {len(thread_messages)}")
+                # print(f"conversation: {len(conversation)}")      
 
                 # get all recipients in the thread
                 thread_recipients = get_thread_recipients(thread_messages[-1][7])        
 
-                # chat client objects
-                client_chat_O = OpenaiLLMObject()
-                client_chat_A = AnthropicLLMObject()
-
+                # chat client objects - instantiate at the top of program
+                client_chat = OpenaiLLMObject()
+                # client_chat = AnthropicLLMObject()
+    
                 # build conversation object for this thread
-                client_chat_O.build_prompt_conversation(thread_messages)
-                client_chat_A.build_prompt_conversation(thread_messages)
-                
-                # telemetry
-                print(f"\nthread: {thread_index+1} of {len(response_queue)}")
-                print(f"thread_messages: {len(thread_messages)}")
-                # print(f"conversation_O: {len(conversation_O)}")
-                # print(f"conversation_A: {len(conversation_A)}")
+                client_chat.build_prompt_conversation(thread_messages)
 
                 # Build the prompt to complete the conversation - not for use with assistants
-                client_chat_O.build_prompt_response(prompts['prompt_response'])
-                client_chat_A.build_prompt_response(prompts['prompt_response'])
-
-                # Uses completion method to get ChatGPT response to the person's text message
-                client_chat_completion_O = client_chat_O.completion()
-                new_message_O = client_chat_completion_O.choices[0].message.content
-
-                # Print to console
-                print(f"\nThread info: {thread}")
-                print(f"\nResponse from {client_chat_O.name}:\n{new_message_O}")
+                client_chat.build_prompt_response(prompts['prompt_response'])
 
                 # Uses completion method to get Claude's response to the person's text message
-                client_chat_completion_A = client_chat_A.completion()
-                new_message_A = client_chat_completion_A.content[0].text
+                client_chat_completion = client_chat.completion() # root completion method, but should not need to be used
+                new_message = client_chat.new_message
 
                 # Print to console
                 print(f"\nThread info: {thread}")
-                print(f"\nResponse from {client_chat_A.name}:\n{new_message_A}")
+                print(f"\nResponse from {client_chat.name}:\n{new_message}")
 
                 # Send the response via iMessage
                 # for now, use Anthropic
-                new_message = new_message_A
                 send_imessage(thread_recipients, thread, remove_json_like_objects(new_message))
 
-                # invoke tools functions
-                client_tools_O = OpenaiLLMObject(tools=my_tools)
-                client_tools_A = AnthropicLLMObject(tools=my_tools)
-                client_tools_O.build_prompt_conversation(thread_messages)
-                client_tools_A.build_prompt_conversation(thread_messages)
-                client_tools_O.build_prompt_response_tools(prompts['prompt_response_tools'])
-                client_tools_A.build_prompt_response_tools(prompts['prompt_response_tools'])
+                # tools client objects - instantiate at the top of program
+                client_tools = OpenaiLLMObject(tools=my_tools)
+                # client_tools = AnthropicLLMObject(tools=my_tools)
 
-                # Tools - OpenAI
-                client_tools_completion_O = client_tools_O.completion(tools=my_tools) 
-                print(f"\nResponse from {client_tools_O.name} message:\n{client_tools_O.tool_messages}")
-                print(json.dumps(client_tools_O.tool_calls, indent = 4)) if client_tools_O.tool_calls else None
+                client_tools.build_prompt_conversation(thread_messages)
+                client_tools.build_prompt_response_tools(prompts['prompt_response_tools'])
                 
-                # Tools - Anthropic
-                client_tools_completion_A = client_tools_A.completion(tools=my_tools) 
-                print(f"\nResponse from {client_tools_A.name} message:\n{client_tools_A.tool_messages}")
-                print(json.dumps(client_tools_A.tool_calls, indent = 4)) if client_tools_A.tool_calls else None
+                # Tools
+                client_tools_completion = client_tools.completion(tools=my_tools) 
+                print(f"\nResponse from {client_tools.name} message:\n{client_tools.tool_messages}")
+                print(json.dumps(client_tools.tool_calls, indent = 4)) if client_tools.tool_calls else None
                 
                 # Process the tool calls - clear responses
                 new_message_image = None
                 
-                # Process the tool calls - Anthropic
-                if client_tools_A.tool_calls:
-                    print(f"\nResponse of {client_tools_A.name} Tool calls.\nNo. of calls: {len(client_tools_A.tool_calls)}")
-                    for i, tool in enumerate(client_tools_A.tool_calls):
+                # Process the tool calls
+                if client_tools.tool_calls:
+                    print(f"\nResponse of {client_tools.name} Tool calls.\nNo. of calls: {len(client_tools.tool_calls)}")
+                    for i, tool in enumerate(client_tools.tool_calls):
                         function_name = tool['name']
                         function_args = tool['arguments']                
                         print(f"\nFunction {i+1}: {function_name}")
                         print(json.dumps(function_args, indent=4))
 
-                        # if function_name == "generate_image":
-                        #     # response_generate_image = generate_image(client_tools_O, **function_args)
-                        #     # new_message_image = response_generate_image.data[0].url
-                        #     client_image_O = OpenaiDalleObject()
-                        #     client_image_completion_O = client_image_O.completion(**function_args)
-                        #     new_message_image = client_image_completion_O.data[0].url
-                        # else:
-                        #     pass
-
-
-                # Process the tool calls - OpenAI
-                if client_tools_O.tool_calls:
-                    print(f"\nResponse of {client_tools_O.name} Tool calls.\nNo. of calls: {len(client_tools_O.tool_calls)}")
-                    for i, tool in enumerate(client_tools_O.tool_calls):
-                        function_name = tool['name']
-                        function_args = tool['arguments']                
-                        print(f"\nFunction {i+1}: {function_name}")
-                        print(json.dumps(function_args, indent=4))
-
+                        # Tool actions go here - only generate_image for now.
                         if function_name == "generate_image":
-                            # response_generate_image = generate_image(client_tools_O, **function_args)
-                            # new_message_image = response_generate_image.data[0].url
-                            client_image_O = OpenaiDalleObject()
-                            client_image_completion_O = client_image_O.completion(**function_args)
-                            new_message_image = client_image_completion_O.data[0].url
+                            
+                            # image client objects - instantiate at the top of program
+                            client_image = OpenaiDalleObject()
+                            
+                            client_image_completion = client_image.completion(**function_args)
+                            new_message_image = client_image_completion.data[0].url
+
+                            # delete the instance of the client_image
+                            del client_image
+
                         else:
                             pass
 
@@ -326,6 +299,12 @@ def main():
                 # Update the last processed message ID
                 last_processed_id = thread[0]
                 update_last_processed_id(last_processed_id)
+
+                # delete the instance of the client_chat and client_tools
+                del client_chat
+                del client_tools
+
+                response_queue_finished = True
 
             # Wait for a specified interval before checking for new messages
             time.sleep(CHECK_INTERVAL)

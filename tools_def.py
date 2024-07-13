@@ -17,7 +17,7 @@ my_tools = [
                     },
                     "size": {
                         "type": "string",
-                        "description": "The size and orientation of the image or diagram, e.g. 800x600, 16:9, etc.",
+                        "description": "The size and orientation of the image or diagram, valid sizes include: 1024x1024, 1792X1024, 1024x1792.",
                     },
                     "format": {
                         "type": "string",

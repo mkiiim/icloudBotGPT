@@ -14,6 +14,7 @@ USERNAME = "<your_username>"
 # OpenAI
 APIKEY_OPENAI = os.getenv('APIKEY_OPENAI')
 GPT_MODEL = "gpt-4o"
+DALL_E_MODEL = "dall-e-3"
 EMBEDDING_ENGINE = "text-embedding-ada-002"
 EMBEDDING_DIMENSION = 1536
 MAX_TOKENS_PER_FILE = 128

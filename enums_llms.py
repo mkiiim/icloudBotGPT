@@ -7,6 +7,7 @@ class OpMode(Enum):
 class OpenAIModels(Enum):
     GPT3_5 = "gpt-3.5-turbo"
     GPT4O = "gpt-4o"
+    DALL_E_3 = "dall-e-3"
 
     def __str__(self):
         return self.value

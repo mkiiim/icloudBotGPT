@@ -230,6 +230,9 @@ def main():
                 # get all recipients in the thread
                 thread_recipients = get_thread_recipients(thread_messages[-1][7])        
 
+                # Thread info
+                print(f"\nthread info: {thread}")
+
                 # chat client objects - instantiate at the top of program
                 client_chat = OpenaiLLMObject()
                 # client_chat = AnthropicLLMObject()
@@ -245,11 +248,9 @@ def main():
                 new_message = client_chat.new_message
 
                 # Print to console
-                print(f"\nThread info: {thread}")
                 print(f"\nResponse from {client_chat.name}:\n{new_message}")
 
                 # Send the response via iMessage
-                # for now, use Anthropic
                 send_imessage(thread_recipients, thread, remove_json_like_objects(new_message))
 
                 # tools client objects - instantiate at the top of program

@@ -41,6 +41,12 @@ class LLMObject(ABC):
             self.tools = tools
             self.opmode = OpMode.tools
 
+        print(f"\nCREATED: {self.name}\n")
+
+    def __del__(self):
+
+        print(f"\nDESTROYED: {self.name}\n")
+
     def build_prompt_conversation(self, thread_messages):
         self.conversation = []
 
@@ -174,6 +180,9 @@ class OpenaiLLMObject(LLMObject):
         super().__init__(model_name, max_tokens, temperature, tools)
         self.client = OpenAI(api_key=APIKEY_OPENAI)
 
+        if self.name: 
+            old_name = self.name
+
         self.uuid = uuid.uuid4()
         if tools is None:
             self.name = f"{__class__.__name__}_{self.uuid}"
@@ -181,6 +190,8 @@ class OpenaiLLMObject(LLMObject):
         else:
             self.name = f"{__class__.__name__}_tools_{self.uuid}"
             self.tools = tools
+
+        print(f"\nRENAMED: {old_name} to {self.name}\n")
 
     def format_attachment(self, attachment_type, attachment_encode):
         formatted_attachment = {
@@ -256,6 +267,9 @@ class AnthropicLLMObject(LLMObject):
         super().__init__(model_name, max_tokens, temperature, tools)
         self.client = Anthropic(api_key=APIKEY_ANTHROPIC)
 
+        if self.name: 
+            old_name = self.name
+
         self.uuid = uuid.uuid4()
         if tools is None:
             self.name = f"{__class__.__name__}_{self.uuid}"
@@ -263,6 +277,8 @@ class AnthropicLLMObject(LLMObject):
         else:
             self.name = f"{__class__.__name__}_tools_{self.uuid}"
             self.tools = tools
+
+        print(f"\nRENAMED: {old_name} to {self.name}\n")
 
     def format_attachment(self, attachment_type, attachment_encode):
         formatted_attachment = {
@@ -372,6 +388,12 @@ class OpenaiDalleObject():
         
         self.uuid = uuid.uuid4()
         self.name = f"{__class__.__name__}_{self.uuid}"
+
+        print(f"\nCREATED: {self.name}\n")
+
+    def __del__(self):
+
+        print(f"\nDESTROYED: {self.name}\n")
         
     @retry(wait=wait_random_exponential(multiplier=1, max=40), stop=stop_after_attempt(3))
     def completion(self, **kwargs):
